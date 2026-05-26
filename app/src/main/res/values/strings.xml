@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">PADM-UAL</string>
+    <string name="menu_title">PADM-UAL</string>
+    <string name="play_vs_cpu">Play vs CPU</string>
+    <string name="how_to_play">How to Play</string>
+    <string name="credits">Developed by Mario Pinheiro</string>
+    <string name="roll">Roll</string>
+    <string name="hold">Hold</string>
+    <string name="you_win">YOU WIN!</string>
+    <string name="cpu_wins">CPU WINS</string>
+    <string name="play_again">Play Again</string>
+    <string name="main_menu">Main Menu</string>
+    <string name="player_label">Player</string>
+    <string name="cpu_label">CPU</string>
+    <string name="target_score">Target: 100</string>
+    <string name="turn_total">Turn Total</string>
+    <string name="busted">Busted!</string>
+    <string name="leave_game_title">Leave Game?</string>
+    <string name="leave_game_message">Progress will be lost.</string>
+    <string name="leave">Leave</string>
+    <string name="stay">Stay</string>
+    <string name="difficulty_easy">Easy</string>
+    <string name="difficulty_medium">Medium</string>
+    <string name="difficulty_hard">Hard</string>
+    <string name="sound_on">Sound On</string>
+    <string name="sound_off">Sound Off</string>
+    <string name="rules_title">How to Play</string>
+    <string name="rules_body">D20 Pig is a risk-and-reward dice game.\n\n1. Players alternate turns. You go first.\n\n2. On your turn, roll the 20-sided die.\n\n3. Roll 2–20: The value is added to your turn total. Choose to Roll Again or Hold.\n\n4. Roll 1: You lose your entire turn total! Your turn ends.\n\n5. Hold: Your turn total is banked to your permanent score. Your turn ends.\n\n6. First player to reach 100 points wins!\n\nStrategy tip: The higher your turn total, the more you risk losing. Know when to hold!</string>
+    <string name="back">Back</string>
+    <string name="cpu_thinking">CPU is thinking…</string>
+    <string name="final_score">Player: %1$d — CPU: %2$d</string>
+</resources>
