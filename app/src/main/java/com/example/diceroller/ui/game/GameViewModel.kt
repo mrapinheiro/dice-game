@@ -17,14 +17,26 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
+/**
+ * Owns all game state and turn flow for a single match of D20 Pig.
+ *
+ * The single source of truth is [uiState]; the UI observes it and renders. Rules of the
+ * variant: each roll of a d20 adds to the current turn total, but rolling a 1 busts the
+ * turn (the total is lost and play passes over). Holding banks the turn total; first to
+ * 100 wins. The CPU plays itself autonomously via [cpuTurnLoop], using [CpuStrategy] to
+ * decide when to hold.
+ */
 class GameViewModel(savedStateHandle: SavedStateHandle) : ViewModel() {
 
+    // Difficulty arrives as a navigation argument (string); default to MEDIUM if absent.
     private val difficultyName: String = savedStateHandle["difficulty"] ?: "MEDIUM"
     private val difficulty = Difficulty.valueOf(difficultyName)
 
     private val _uiState = MutableStateFlow(GameUiState(difficulty = difficulty))
     val uiState: StateFlow<GameUiState> = _uiState.asStateFlow()
 
+    // Sound/haptic hooks wired up by the UI. Kept as nullable callbacks so the ViewModel
+    // stays free of Android UI/audio dependencies and remains unit-testable.
     var onDiceRollSound: (() -> Unit)? = null
     var onDiceLandSound: (() -> Unit)? = null
     var onPointsBankedSound: (() -> Unit)? = null
@@ -43,16 +55,19 @@ class GameViewModel(savedStateHandle: SavedStateHandle) : ViewModel() {
     // Track the CPU turn job so it can be cancelled on cleanup
     private var cpuTurnJob: Job? = null
 
+    /** Human ROLL action. Ignored unless it's the human's turn and no roll is in flight. */
     fun roll() {
         val state = _uiState.value
         if (state.isRolling || state.gamePhase == GamePhase.GAME_OVER) return
         if (state.currentPlayer != Player.HUMAN) return
 
+        // animationScope drives the Compose dice animation; without it there's nothing to roll into.
         val scope = animationScope ?: return
 
         val rolledValue = (1..20).random()
         _uiState.update { it.copy(isRolling = true, gamePhase = GamePhase.ROLLING) }
 
+        // Play the throw animation first, then apply the result once the die has landed.
         scope.launch {
             onDiceRollSound?.invoke()
             diceAnimation.animateRoll(rolledValue)
@@ -62,6 +77,11 @@ class GameViewModel(savedStateHandle: SavedStateHandle) : ViewModel() {
         }
     }
 
+    /**
+     * Human HOLD action: bank the current turn total into the player's score. Only valid
+     * right after a successful roll (ROLLED). Banking to >= 100 wins; otherwise the turn
+     * passes to the CPU.
+     */
     fun hold() {
         val state = _uiState.value
         if (state.isRolling || state.currentPlayer != Player.HUMAN) return
@@ -94,10 +114,12 @@ class GameViewModel(savedStateHandle: SavedStateHandle) : ViewModel() {
         }
     }
 
+    /** Resolve a landed human roll: a 1 busts the turn, anything else accrues to the turn total. */
     private fun applyRollResult(rolledValue: Int) {
         val scope = animationScope ?: return
 
         if (rolledValue == 1) {
+            // Bust: lose the turn total, flash the die red, then hand off to the CPU.
             onTurnLostSound?.invoke()
             scope.launch {
                 diceAnimation.flashRed()
@@ -110,6 +132,8 @@ class GameViewModel(savedStateHandle: SavedStateHandle) : ViewModel() {
                     gamePhase = GamePhase.TURN_LOST
                 )
             }
+            // The bust pause + handover is just a timed delay (no frame-driven animation),
+            // so it runs on viewModelScope rather than the Compose animationScope.
             viewModelScope.launch {
                 delay(1500)
                 _uiState.update {
@@ -132,6 +156,7 @@ class GameViewModel(savedStateHandle: SavedStateHandle) : ViewModel() {
         }
     }
 
+    /** Kick off the CPU's autonomous turn after a short beat. Tracked so it can be cancelled. */
     private fun startCpuTurn() {
         val scope = animationScope ?: return
         cpuTurnJob?.cancel()
@@ -141,11 +166,17 @@ class GameViewModel(savedStateHandle: SavedStateHandle) : ViewModel() {
         }
     }
 
+    /**
+     * Drives a full CPU turn to completion: roll, animate, then either bust (a 1) or decide
+     * via [CpuStrategy] whether to keep rolling or bank. Returns once the turn ends — by bust,
+     * by holding, or by reaching 100.
+     */
     private suspend fun cpuTurnLoop() {
         while (true) {
             val state = _uiState.value
             if (state.gamePhase == GamePhase.GAME_OVER) return
 
+            // "Thinking" pause with a little jitter so the CPU doesn't feel robotic.
             onCpuThinkingSound?.invoke()
             delay(1000 + (Math.random() * 1000).toLong())
 
@@ -158,6 +189,7 @@ class GameViewModel(savedStateHandle: SavedStateHandle) : ViewModel() {
             onHapticLand?.invoke()
 
             if (rolledValue == 1) {
+                // Bust: drop the turn total and hand control back to the human.
                 onTurnLostSound?.invoke()
                 diceAnimation.flashRed()
                 _uiState.update {
@@ -188,6 +220,7 @@ class GameViewModel(savedStateHandle: SavedStateHandle) : ViewModel() {
                 )
             }
 
+            // Ask the strategy whether to bank now; but always take a guaranteed win.
             val currentState = _uiState.value
             val shouldHold = CpuStrategy.shouldHold(
                 difficulty = currentState.difficulty,
@@ -229,6 +262,7 @@ class GameViewModel(savedStateHandle: SavedStateHandle) : ViewModel() {
         }
     }
 
+    /** Start a fresh match. Cancels any in-flight CPU turn so it can't mutate the new state. */
     fun resetGame() {
         cpuTurnJob?.cancel()
         cpuTurnJob = null
@@ -238,6 +272,7 @@ class GameViewModel(savedStateHandle: SavedStateHandle) : ViewModel() {
         diceAnimation.displayNumber = 0
     }
 
+    /** Drop UI callbacks and stop the CPU job — called when the screen leaves composition. */
     fun clearCallbacks() {
         cpuTurnJob?.cancel()
         cpuTurnJob = null
