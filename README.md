@@ -19,6 +19,20 @@ A casino-themed **D20 Pig** dice game for Android, built with Kotlin and Jetpack
 
 ---
 
+## Difficulty
+
+The CPU's only decision is *when to stop rolling and bank*, so each difficulty is a **hold threshold**: it keeps rolling until its turn total reaches the threshold, then holds (it always takes a guaranteed win regardless). On a d20 each roll busts only 5% of the time and adds ~11 points on average, so higher thresholds mean a greedier, faster-scoring opponent.
+
+| Level | Hold threshold | Behavior |
+|---|---|---|
+| **Easy** | 10 | Banks early — slow, timid, easy to outpace. |
+| **Medium** | 20 | Classic near-optimal flat strategy; plays the same regardless of score. |
+| **Hard** | `20 + (lead ÷ 5)`, clamped to 12–30 | Adapts to the scoreboard: raises the threshold to press a lead and close out fast, lowers it to grind safe points when behind. |
+
+Here `lead = cpuScore − playerScore`, so a 25-point lead pushes Hard to hold at 25, while being 50 behind drops it to its floor of 12. See `CpuStrategy.shouldHold`.
+
+---
+
 ## Screenshots
 
 <table>
